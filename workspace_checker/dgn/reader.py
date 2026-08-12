@@ -54,6 +54,7 @@ _RECORD_MARK = b"\xff\xfe\x01\x00"
 _RECORD_RE = re.compile(re.escape(_RECORD_MARK))
 _HEADER = 12
 _DLEN_OVERHEAD = 4
+_MAX_RECORD = 512
 
 # Within a definition, sequence 1 carries the name and sequence 2 the description.
 _SEQ_NAME = 1
@@ -158,22 +159,26 @@ def extract_schemas(payload: bytes) -> list[EmbeddedSchema]:
 def iter_records(payload: bytes):
     """Yield ``(sequence, text)`` for every self-consistent named record.
 
-    The declared length must equal the string length plus the marker, which is a
-    strong enough check that no further filtering is needed.
+    The declared length is authoritative and gives the string length directly.
+    Locating the end by searching for a NUL instead overshoots whenever the bytes
+    after the string happen to be non-zero, which silently drops records -- it cost
+    one level in every OpenBridge library tested. Requiring the slice to be clean
+    ASCII with no embedded NUL is what rejects coincidental matches.
     """
     for match in _RECORD_RE.finditer(payload):
         head = match.start() - _HEADER
         if head < 0:
             continue
         _tag, sequence, declared = struct.unpack_from("<III", payload, head)
-        start = match.end()
-        end = payload.find(b"\x00", start)
-        if end < 0 or end == start:
+        length = declared - _DLEN_OVERHEAD
+        if not 0 < length <= _MAX_RECORD:
             continue
-        if declared != (end - start) + _DLEN_OVERHEAD:
+        start = match.end()
+        raw = payload[start : start + length]
+        if len(raw) != length or b"\x00" in raw:
             continue
         try:
-            yield sequence, payload[start:end].decode("ascii")
+            yield sequence, raw.decode("ascii")
         except UnicodeDecodeError:
             continue
 

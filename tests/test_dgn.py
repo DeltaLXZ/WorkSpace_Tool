@@ -126,6 +126,26 @@ class TestRecords:
         payload = b"\x00" * 8 + self._record(1, "Bridge_Abutment", declared=99)
         assert list(iter_records(payload)) == []
 
+    def test_record_not_followed_by_a_nul_is_still_read(self):
+        """The declared length delimits the string, not a NUL terminator.
+
+        Searching for a NUL overshoots when the following bytes are non-zero, which
+        silently dropped one level in every OpenBridge library tested.
+        """
+        name = "bm_Bridge_D_Segmental_Deck_Outline_p_n"
+        payload = b"\x00" * 8 + self._record(1, name).rstrip(b"\x00") + b"\x2f\x1b"
+        assert list(iter_records(payload)) == [(1, name)]
+
+    def test_embedded_nul_rejects_the_record(self):
+        body = b"Bridge\x00Cap"
+        payload = (
+            b"\x00" * 8
+            + struct.pack("<III", 0x56D2100F, 1, len(body) + 4)
+            + b"\xff\xfe\x01\x00"
+            + body
+        )
+        assert list(iter_records(payload)) == []
+
     def test_name_followed_by_description_is_one_definition(self):
         payload = (
             b"\x00" * 8
