@@ -138,17 +138,41 @@ Names containing a space are the human-authored ones — Feature Definitions, El
 Templates, template paths. The rest are EC property identifiers, available with
 `--names`.
 
+### Element templates and the levels they use
+
+Element template parameters are stored as BECXML, a tokenised EC instance: a string
+dictionary of `0xFA <length> <ascii>` entries followed by a value stream that refers to
+those strings by index. `decode_becxml` reads the dictionary, which is unambiguous. The
+value stream needs the schema to interpret and is not decoded.
+
+Because only the dictionary is read, the reader reports the *set* of names a library's
+templates refer to rather than which template names which level. It cannot separate a
+level from a material the same template mentions — against a known-good ET export it
+returned 45 names for 44 real levels, the extra being a material.
+
 ### What this does not do
 
-This is an inventory, not a full DGN element parser. It cannot yet resolve the Feature
-Definition to Feature Symbology to Element Template to Level chain, and **it does not
-read symbology values** — colour, weight and style. The stream carries the field
-identifiers (`level-color`, `level-style`, `level-description` appear literally), and
-numeric fields sit immediately after each definition, but assigning meaning to those
-offsets without a known-good export to check against would mean guessing. A wrong guess
-would produce confidently incorrect audit results, which is worse than reporting
-`NOT_EVALUATED`. One Level CSV exported from any workspace is enough to pin the offsets
-down; until then symbology comes from supplied exports only.
+**It does not read symbology values** — colour, weight and style. This is the piece that
+matters most and it is unsolved.
+
+Level records are locatable and carry a clean level number, but the ByLevel colour is
+not stored near them. Verified against a real Level CSV of 119 levels, all of these came
+back at chance level:
+
+- a fixed offset from the level name, and from the level record marker
+- a wide window (700 bytes) around the record, restricted to distinctive colours
+- a strided array in export order, and in storage order
+- a table indexed by the level number, at every stride and width
+
+Every substantive stream inflates, so the data is not hiding in an unparsed stream.
+
+The leading hypothesis is that the search itself is wrong: the CSV reports a **palette
+index**, and the file may store a resolved **RGB triple** or a colour-book reference. If
+so, every search above was looking for a number that is not there. Testing that means
+locating the file's colour table and mapping index to RGB.
+
+Until this is solved, symbology comes from supplied exports, and the offline reader does
+not remove the need to open a library — it only reduces what you take out of it.
 
 ## How the DGNLIB extraction works, and its limits
 

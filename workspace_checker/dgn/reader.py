@@ -60,6 +60,15 @@ _MAX_RECORD = 512
 _SEQ_NAME = 1
 _SEQ_DESCRIPTION = 2
 
+# Element template parameters are stored as BECXML, a tokenised EC instance. It opens
+# with a string dictionary of 0xFA <length> <ascii> records, then a value stream that
+# refers to those strings by index. Only the dictionary is decoded here: it is
+# unambiguous, whereas the value stream needs the schema to interpret.
+_BECXML = b"BECXML"
+_BECXML_TOKEN = 0xFA
+_BECXML_WINDOW = 1400
+_ELEMENT_PARAMS = "Ustn_ElementParams"
+
 
 @dataclass
 class EmbeddedSchema:
@@ -88,6 +97,7 @@ class DgnLibrary:
     streams: dict[str, int] = field(default_factory=dict)
     schemas: list[EmbeddedSchema] = field(default_factory=list)
     definitions: list[Definition] = field(default_factory=list)
+    template_levels: list[str] = field(default_factory=list)
     names: list[str] = field(default_factory=list)
     unreadable: list[str] = field(default_factory=list)
     error: str = ""
@@ -208,6 +218,45 @@ def extract_definitions(payload: bytes) -> list[Definition]:
     return definitions
 
 
+def decode_becxml(blob: bytes) -> list[str]:
+    """The string dictionary of a BECXML blob, in storage order.
+
+    Each entry is ``0xFA <length> <ascii>``. Bytes that do not form a valid entry are
+    part of the value stream and are skipped.
+
+    This is the dictionary, **not** document order: a string used many times in the
+    document appears once here. Reading a property's value by taking the token after
+    its name therefore only works by coincidence, and must not be relied on.
+    """
+    strings: list[str] = []
+    index = 0
+    while index < len(blob):
+        if blob[index] == _BECXML_TOKEN and index + 1 < len(blob):
+            length = blob[index + 1]
+            candidate = blob[index + 2 : index + 2 + length]
+            if len(candidate) == length and all(32 <= c < 127 for c in candidate):
+                strings.append(candidate.decode("ascii"))
+                index += 2 + length
+                continue
+        index += 1
+    return strings
+
+
+def element_param_strings(payload: bytes) -> list[list[str]]:
+    """The dictionary of every element-template parameter blob in a stream.
+
+    An element template records the level it draws on, so these dictionaries contain
+    level names. Which template names which level needs the value stream decoded, so
+    this deliberately returns the raw dictionaries rather than implying a mapping.
+    """
+    blobs: list[list[str]] = []
+    for match in re.finditer(_BECXML, payload):
+        strings = decode_becxml(payload[match.start() : match.start() + _BECXML_WINDOW])
+        if _ELEMENT_PARAMS in strings[:8]:
+            blobs.append(strings)
+    return blobs
+
+
 def harvest_names(payload: bytes) -> list[str]:
     """Length-prefixed ASCII names in an inflated stream, in file order.
 
@@ -283,12 +332,27 @@ def read_library(path: str | Path) -> DgnLibrary:
             library.streams[name] = len(payload)
             library.schemas.extend(extract_schemas(payload))
             library.definitions.extend(extract_definitions(payload))
+            library.template_levels.extend(element_param_strings(payload))
             for candidate in harvest_names(payload):
                 if candidate not in seen_names:
                     seen_names.add(candidate)
                     library.names.append(candidate)
     finally:
         ole.close()
+
+    # Names appearing in an element-template parameter blob are what that library's
+    # templates refer to. Intersecting with the library's own definitions is what keeps
+    # this usable without decoding the value stream, but it cannot separate a level from
+    # a material or other named item the same template mentions: against a known-good ET
+    # export this returned 45 names for 44 real levels, the extra being a material.
+    # Treat it as the referenced set, not a verified level list.
+    declared = {d.name for d in library.definitions}
+    referenced: list[str] = []
+    for strings in library.template_levels:
+        for candidate in strings:
+            if candidate in declared and candidate not in referenced:
+                referenced.append(candidate)
+    library.template_levels = referenced
 
     seen_definitions: set[tuple[str, str]] = set()
     unique_definitions: list[Definition] = []

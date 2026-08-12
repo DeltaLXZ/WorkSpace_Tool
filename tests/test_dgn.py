@@ -13,6 +13,8 @@ import struct
 
 from workspace_checker.dgn.reader import (
     OLE_MAGIC,
+    decode_becxml,
+    element_param_strings,
     extract_definitions,
     extract_schemas,
     harvest_names,
@@ -166,6 +168,38 @@ class TestRecords:
     def test_orphan_description_is_not_a_definition(self):
         payload = b"\x00" * 8 + self._record(2, "Prop Bridge Abutment")
         assert extract_definitions(payload) == []
+
+
+class TestBecxml:
+    @staticmethod
+    def _dict(*strings: str) -> bytes:
+        out = b"BECXML\x00\xff\x0a"
+        for s in strings:
+            out += bytes([0xFA, len(s)]) + s.encode("ascii")
+        return out
+
+    def test_decodes_the_string_dictionary(self):
+        blob = self._dict("Ustn_ElementParams", "Levels", "Level", "Value", "Deck_p_n")
+        assert decode_becxml(blob) == [
+            "Ustn_ElementParams", "Levels", "Level", "Value", "Deck_p_n",
+        ]
+
+    def test_value_stream_bytes_are_skipped(self):
+        blob = self._dict("Colors", "Color") + b"\x03\x00\x05\x01\x11\x02"
+        assert decode_becxml(blob) == ["Colors", "Color"]
+
+    def test_truncated_entry_is_not_decoded(self):
+        assert decode_becxml(b"\xfa\x20short") == []
+
+    def test_only_element_param_blobs_are_returned(self):
+        payload = (
+            self._dict("Ustn_ElementParams", "Levels", "Level", "Value", "Deck_p_n")
+            + b"\x00" * 4
+            + self._dict("CategoryNameSet", "instanceId")
+        )
+        blobs = element_param_strings(payload)
+        assert len(blobs) == 1
+        assert "Deck_p_n" in blobs[0]
 
 
 class TestReadLibrary:
