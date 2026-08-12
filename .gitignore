@@ -1,22 +1,10 @@
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-
-# Editors
-.vscode/
-.idea/
-*.swp
-
-# Environment
-.env
-.env.local
-
-# Logs
-*.log
-
-# Build output
-dist/
+.venv/
+__pycache__/
+*.py[cod]
 build/
-out/
+dist/
+*.spec
+!WorkspaceChecker.spec
+output/
+healthcheck.config.json
+.pytest_cache/

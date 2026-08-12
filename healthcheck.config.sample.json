@@ -1,0 +1,91 @@
+{
+  "_comment": "Rename to healthcheck.config.json next to the .exe (or pass --config) to activate. Every key is optional; anything omitted uses the built-in default.",
+
+  "severity_overrides": {
+    "reference_integrity": "FAIL",
+    "fd_coverage": "FAIL",
+    "level_completeness": "FAIL",
+    "bylevel_symbology": "WARN",
+    "orphan_element_template": "WARN",
+    "orphan_feature_symbology": "WARN",
+    "duplicate_level_names": "WARN",
+    "duplicate_element_template_paths": "WARN",
+    "empty_level_reference": "WARN",
+    "plot_flag_sanity": "WARN",
+    "dead_paths": "FAIL",
+    "mapped_drive_paths": "WARN",
+    "machine_local_paths": "WARN",
+    "role_coverage": "FAIL",
+    "export_enablement": "WARN",
+    "duplicate_dgnlib_basenames": "WARN",
+    "workset_shadowing": "WARN",
+    "conflicting_definitions": "WARN",
+    "include_graph": "FAIL",
+    "unreferenced_dgnlib": "WARN"
+  },
+
+  "ignore": {
+    "orphan_element_template_paths": ["Spares\\*", "Legacy\\*"],
+    "levels": ["Default"],
+    "variables": [],
+    "paths": [],
+    "dgnlibs": []
+  },
+
+  "verdict_policy": {
+    "warnings_block_production": false
+  },
+
+  "output": {
+    "font": "Calibri",
+    "brand_primary": "1F3864",
+    "brand_accent": "2E5496",
+    "footer": "WSP Digital Delivery"
+  },
+
+  "crawl": {
+    "max_files": 250000,
+    "hash_files": true,
+    "hash_size_limit_mb": 250,
+    "skip_folders": [".git", ".svn", "node_modules", "__pycache__"]
+  },
+
+  "config_verification": {
+    "precedence_levels": [
+      "System", "Application", "Organization", "WorkSpace", "WorkSet", "Role", "User", "CommandLine"
+    ],
+    "prepend_operator": "<",
+    "roles": {
+      "levels":    { "vars": ["MS_DGNLIBLIST", "MS_LEVEL_LIBRARY"], "required": true },
+      "features":  { "vars": ["MS_DGNLIBLIST", "CIVIL_CONTENTMANAGEMENTDGNLIBLIST"], "required": true },
+      "templates": { "vars": ["MS_DGNLIBLIST", "MS_ELEMENTTEMPLATESEEDLIST"], "required": true },
+      "styles":    { "vars": ["MS_DGNLIBLIST"], "required": false },
+      "materials": { "vars": ["MS_MATERIAL_LIBRARY", "MS_MATPALETTE"], "required": false },
+      "cells":     { "vars": ["MS_CELLLIST", "MS_CELL"], "required": false }
+    },
+    "require_export_enabled": true,
+    "max_include_depth": 8,
+    "deep_dgnlib": false,
+    "seed_env": {
+      "_USTN_WORKSPACEROOT": "",
+      "_USTN_WORKSETROOT": "",
+      "MSDIR": ""
+    }
+  },
+
+  "extraction": {
+    "enabled": true,
+    "timeout_seconds": 300,
+    "product_preference": ["OpenBridge", "OpenRoads", "OpenRail", "MicroStation"],
+    "product": "",
+    "cache": true,
+    "keyins": [
+      "config set _CIVIL_STANDARDS_IMPORTEXPORT 1",
+      "civilstandards export featuredefinitions {outdir}\\{tag}_FD.xml",
+      "civilstandards export featuresymbologies {outdir}\\{tag}_FS.xml",
+      "elementtemplate export {outdir}\\{tag}_ET.xml",
+      "level export csv {outdir}\\{tag}_Level.csv",
+      "exit noUpdate"
+    ]
+  }
+}
