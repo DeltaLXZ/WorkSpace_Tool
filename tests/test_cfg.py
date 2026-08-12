@@ -1,7 +1,12 @@
 from pathlib import Path
 
 from workspace_checker.cfg.checks import run_config_checks
-from workspace_checker.cfg.resolver import CfgResolver, _strip_comment, _tokenize
+from workspace_checker.cfg.resolver import (
+    CfgResolver,
+    _split_include,
+    _strip_comment,
+    _tokenize,
+)
 from workspace_checker.cfg.roles import collect_dgnlibs, export_enabled, role_coverage
 from workspace_checker.config import load_settings
 from workspace_checker.crawl import crawl, pick_cfg_entry_points
@@ -54,6 +59,23 @@ class TestResolverSemantics:
     def test_comment_stripping_keeps_hash_inside_values(self):
         assert _strip_comment("VAR = a#b # trailing") == "VAR = a#b"
         assert _strip_comment("# whole line") == ""
+
+    def test_apostrophe_in_path_does_not_swallow_the_comment(self):
+        # An unmatched apostrophe used to open a quote that never closed, so the
+        # comment stayed in the value and the path was reported dead.
+        line = r"MS_DEF = C:\Users\It's Here\Standards\   # the share"
+        assert _strip_comment(line) == "MS_DEF = C:\\Users\\It's Here\\Standards\\"
+        # A genuinely quoted value still protects its hash.
+        assert _strip_comment('MS_TAG = "C1#FF00" # colour') == 'MS_TAG = "C1#FF00"'
+
+    def test_include_level_clause_is_not_part_of_the_filespec(self):
+        assert _split_include(r"$(_USTN_WORKSPACEROOT)*.cfg level WorkSpace") == (
+            r"$(_USTN_WORKSPACEROOT)*.cfg",
+            "WorkSpace",
+        )
+        assert _split_include('"standards.cfg"') == ("standards.cfg", "")
+        # "level" only counts as the clause when it trails the whole directive.
+        assert _split_include(r"cfg\level\shared.cfg") == (r"cfg\level\shared.cfg", "")
 
     def test_tokenizer_handles_operators(self):
         assert _tokenize("defined(X) && !defined(Y)") == ["defined(X)", "&&", "!", "defined(Y)"]
@@ -244,6 +266,40 @@ class TestUnresolvedVariables:
             tmp_path, f"_USTN_WORKSPACEROOT = {tmp_path}\\\nSOME_APP_SETTING = 1\n"
         )
         assert checks["role_coverage"].severity is Severity.FAIL
+
+
+class TestWildcardInclude:
+    """Bentley documents "%include <filespec> [level <Level>]" with wildcards, e.g.
+    "%include $(_USTN_WORKSPACEROOT)*.cfg level WorkSpace"."""
+
+    @staticmethod
+    def _build(root: Path, directive: str) -> tuple:
+        inc = root / "Includes"
+        inc.mkdir(parents=True, exist_ok=True)
+        (inc / "a.cfg").write_text("MS_A = 1\n", encoding="utf-8")
+        (inc / "b.cfg").write_text("MS_B = 2\n", encoding="utf-8")
+        entry = root / "org.cfg"
+        entry.write_text(directive, encoding="utf-8")
+        settings = load_settings()
+        resolver = CfgResolver(settings)
+        return resolver.process([entry]), settings
+
+    def test_wildcard_include_loads_every_match(self, tmp_path):
+        model, _ = self._build(tmp_path, "%include Includes/*.cfg\n")
+        assert model.get("MS_A") == "1"
+        assert model.get("MS_B") == "2"
+        assert model.missing_includes == []
+
+    def test_trailing_level_clause_is_stripped_and_applied(self, tmp_path):
+        model, _ = self._build(tmp_path, "%include Includes/*.cfg level WorkSet\n")
+        assert model.get("MS_A") == "1"
+        assert model.missing_includes == []
+        assert model.variables["MS_A"].level == "WorkSet"
+
+    def test_pattern_matching_nothing_is_still_reported(self, tmp_path):
+        model, _ = self._build(tmp_path, "%include Includes/*.absent\n")
+        assert len(model.missing_includes) == 1
+        assert model.missing_includes[0].endswith("*.absent")
 
 
 class TestCrawl:

@@ -79,13 +79,8 @@
     "product_preference": ["OpenBridge", "OpenRoads", "OpenRail", "MicroStation"],
     "product": "",
     "cache": true,
-    "keyins": [
-      "config set _CIVIL_STANDARDS_IMPORTEXPORT 1",
-      "civilstandards export featuredefinitions {outdir}\\{tag}_FD.xml",
-      "civilstandards export featuresymbologies {outdir}\\{tag}_FS.xml",
-      "elementtemplate export {outdir}\\{tag}_ET.xml",
-      "level export csv {outdir}\\{tag}_Level.csv",
-      "exit noUpdate"
-    ]
+
+    "_keyins_comment": "Deliberately empty. A binary scan of the ORD 2024 install found no 'civilstandards' key-in, so the sequence previously shipped here was wrong: it launched the product, consumed a licence and produced no files. Leave this empty unless you have a sequence verified against your own product version. Placeholders {outdir}, {tag} and {dgnlib} are substituted. With no sequence the workspace and configuration audit still runs in full; the standards checks report NOT_EVALUATED.",
+    "keyins": []
   }
 }

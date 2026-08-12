@@ -38,6 +38,12 @@ _PERCENT_RE = re.compile(r"%(?P<name>[A-Za-z_][A-Za-z0-9_]*)%")
 
 _MAX_EXPANSION_PASSES = 24
 
+# "%include <filespec> [level <Level>]" -- the optional trailing clause declares the
+# precedence level the included file is read at, and is not part of the filespec.
+_INCLUDE_LEVEL_RE = re.compile(
+    r"\s+level\s+(?P<level>[A-Za-z_][A-Za-z0-9_]*)\s*$", re.IGNORECASE
+)
+
 # Folder-name -> precedence level, used when a file declares no %level.
 _LEVEL_HINTS = (
     ("organizationcivil", "Organization"),
@@ -329,16 +335,14 @@ class CfgResolver:
             return True, level
 
         if word == "level":
-            candidate = rest.strip().strip('"')
-            for known in self.precedence:
-                if known.lower() == candidate.lower():
-                    return True, known
-            return True, level
+            return True, self._known_level(rest.strip().strip('"'), level)
         if word == "include":
-            target = self._expand(rest.strip().strip('"'))
-            resolved = self._resolve_include(target, path)
-            self.model.include_graph.setdefault(str(path), []).append(str(resolved))
-            self._process_file(resolved, level, depth + 1, stack)
+            spec, declared = _split_include(rest)
+            target = self._expand(spec)
+            included_level = self._known_level(declared, level) if declared else level
+            for resolved in self._resolve_include(target, path):
+                self.model.include_graph.setdefault(str(path), []).append(str(resolved))
+                self._process_file(resolved, included_level, depth + 1, stack)
             return True, level
         if word == "undef":
             name = rest.split()[0].upper() if rest.split() else ""
@@ -354,11 +358,24 @@ class CfgResolver:
             return True, level
         return False, level
 
-    def _resolve_include(self, target: str, including: Path) -> Path:
+    def _known_level(self, candidate: str, fallback: str) -> str:
+        for known in self.precedence:
+            if known.lower() == candidate.lower():
+                return known
+        return fallback
+
+    def _resolve_include(self, target: str, including: Path) -> list[Path]:
+        """Every file the directive names. A wildcard filespec is documented Bentley
+        syntax, so it must expand rather than be reported as one missing file."""
         candidate = Path(target)
         if not candidate.is_absolute():
             candidate = including.parent / candidate
-        return candidate
+        if any(ch in target for ch in "*?"):
+            matches = sorted(Path(p) for p in glob.glob(str(candidate)))
+            # A pattern matching nothing is still worth reporting, but report the
+            # pattern rather than inventing a file that was never named.
+            return matches or [candidate]
+        return [candidate]
 
     def _eval(self, expr: str) -> bool:
         expanded = self._expand(expr)
@@ -458,6 +475,15 @@ class CfgResolver:
                 self.model.path_members.extend(_build_path_members_for(var))
 
 
+def _split_include(rest: str) -> tuple[str, str]:
+    """Split "<filespec> [level <Level>]" into the two parts."""
+    text = rest.strip()
+    match = _INCLUDE_LEVEL_RE.search(text)
+    if match:
+        return text[: match.start()].strip().strip('"'), match.group("level")
+    return text.strip('"'), ""
+
+
 def active_parent(cond: list[list[bool]]) -> bool:
     return all(state[1] for state in cond[:-1]) if len(cond) > 1 else True
 
@@ -467,7 +493,11 @@ def _strip_comment(line: str) -> str:
     for idx, ch in enumerate(line):
         if ch in ("'", '"'):
             if not in_quote:
-                in_quote = ch
+                # An unmatched apostrophe is a path character far more often than an
+                # opening quote (C:\Users\It's Here\), and treating it as a quote
+                # swallows the rest of the line including any trailing comment.
+                if ch in line[idx + 1 :]:
+                    in_quote = ch
             elif in_quote == ch:
                 in_quote = ""
         if ch == "#" and not in_quote and (idx == 0 or line[idx - 1] in " \t"):

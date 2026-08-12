@@ -125,10 +125,19 @@ dropdown. Discovery is depth-bounded and cached, so it costs a fraction of a sec
 rather than walking the whole Bentley install tree.
 
 The key-in sequence used to drive the product lives in `healthcheck.config.json` under
-`extraction.keyins`. **Verify it against your product version before relying on it** —
-key-in names differ between releases, and the shipped default is a starting point, not
-a guarantee. If a run produces no files the tool says so explicitly rather than
-reporting an empty standard set as clean.
+`extraction.keyins`, and **ships empty**. An earlier release guessed at a
+`civilstandards export …` sequence; a binary scan of the ORD 2024 install found no such
+key-in, so it launched the product, consumed a licence and produced nothing. Rather
+than ship a guess, extraction now refuses to launch until you supply a sequence
+verified against your own product version. Key-in names differ between releases.
+
+With no sequence configured, the workspace and configuration audit still runs in full
+and the standards checks report `NOT_EVALUATED` — never an empty standard set reported
+as clean. Export manually as below, or supply the four files directly.
+
+Extraction results are cached per DGNLIB **and** per key-in sequence and product, so
+correcting `extraction.keyins` or switching `--product` re-runs rather than replaying
+the previous attempt. Set `extraction.cache` to `false` to disable caching entirely.
 
 ### Exporting manually
 
@@ -184,6 +193,16 @@ priority. The resolver implements:
 | `:` | Set if undefined | Applied only when the variable has no value yet. A default. |
 | `<` | Prepend | Inserts at the front of the list, so it is searched first and wins. |
 | `>` | Append | Adds to the end of the list, so it acts as a fallback. |
+
+`%include` accepts a wildcard filespec and an optional trailing precedence clause, both
+of which the resolver honours:
+
+```
+%include $(_USTN_WORKSPACEROOT)*.cfg level WorkSpace
+```
+
+Every match is read, in sorted order, at the declared level. A pattern that matches
+nothing is reported as a missing include, naming the pattern rather than a phantom file.
 
 Because the first match wins, the **Ambiguous DGNLIB names** check resolves duplicates
 by list position rather than by configuration level, and names the copy that actually

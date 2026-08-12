@@ -187,7 +187,15 @@ class StandardsExtractor:
         return files
 
     def _cache_dir(self, dgnlib: Path) -> Path:
-        return self._cache_root / f"{dgnlib.stem}_{_sha1(dgnlib)}"
+        # The DGNLIB alone is not the whole input: the key-in sequence and the product
+        # driving it both change the result. Keying on the DGNLIB only meant that
+        # correcting extraction.keyins, or switching --product, silently replayed the
+        # previous run -- exactly the loop someone is in while finding a sequence
+        # that works.
+        recipe = hashlib.sha1(
+            "\n".join([*self.keyins, self.product.exe]).encode("utf-8", "replace")
+        ).hexdigest()[:12]
+        return self._cache_root / f"{dgnlib.stem}_{_sha1(dgnlib)}_{recipe}"
 
     def _from_cache(self, dgnlib: Path, outdir: Path, tag: str) -> ExtractionResult | None:
         if not self.cache_enabled:
