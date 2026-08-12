@@ -50,6 +50,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--list-products", action="store_true",
         help="List the Bentley products found on this machine and exit.",
     )
+    parser.add_argument(
+        "--read-dgnlib", nargs="+", metavar="DGNLIB",
+        help="Read DGNLIBs directly and report what they declare, without launching "
+             "any Bentley product. Accepts folders, which are searched recursively.",
+    )
+    parser.add_argument(
+        "--names", action="store_true",
+        help="With --read-dgnlib, list every name found rather than a sample.",
+    )
     parser.add_argument("--json-only", action="store_true", help="Write only the JSON summary.")
     parser.add_argument("--gui", action="store_true", help="Open the drag-and-drop window.")
     parser.add_argument("--quiet", action="store_true", help="Errors only.")
@@ -142,9 +151,68 @@ def print_summary(result: AuditResult, written: list[Path]) -> None:
     print("  Open the Action_Plan sheet first; Config_Findings lists every wiring item.\n")
 
 
+def _expand_dgnlibs(inputs: list[str]) -> list[Path]:
+    found: list[Path] = []
+    for raw in inputs:
+        path = Path(raw)
+        if path.is_dir():
+            found.extend(sorted(path.rglob("*.dgnlib")))
+        elif path.exists():
+            found.append(path)
+        else:
+            log.warning("Not found: %s", raw)
+    return found
+
+
+def print_libraries(paths: list[Path], show_all_names: bool) -> int:
+    """Report what each DGNLIB declares. Returns a process exit code."""
+    from .dgn import read_library
+
+    if not paths:
+        print("No .dgnlib files found.", file=sys.stderr)
+        return EXIT_USAGE
+
+    failed = 0
+    for path in paths:
+        library = read_library(path)
+        print(f"\n{path}")
+        if not library.ok:
+            print(f"  unreadable: {library.error}")
+            failed += 1
+            continue
+
+        print(
+            f"  {len(library.streams)} stream(s), "
+            f"{len(library.schemas)} EC schema(s), {len(library.names)} name(s)"
+        )
+        if library.schemas:
+            print("  Schemas")
+            for schema in sorted(library.schemas, key=lambda s: s.name):
+                print(f"    {schema.label}")
+        if library.names:
+            # Names with a space are the human-authored ones; the rest are EC
+            # property identifiers, which are rarely what someone is looking for.
+            human = [n for n in library.names if " " in n]
+            shown = library.names if show_all_names else (human or library.names)
+            print(f"  Names ({len(shown)} shown of {len(library.names)})")
+            for name in shown if show_all_names else shown[:40]:
+                print(f"    {name}")
+            if not show_all_names and len(shown) > 40:
+                print(f"    ... and {len(shown) - 40} more; pass --names for all")
+        if library.unreadable:
+            print("  Streams that could not be read")
+            for note in library.unreadable:
+                print(f"    {note}")
+
+    return EXIT_FAIL if failed == len(paths) else EXIT_OK
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     _configure_logging(args.quiet, args.verbose)
+
+    if args.read_dgnlib:
+        return print_libraries(_expand_dgnlibs(args.read_dgnlib), args.names)
 
     if args.list_products:
         from .extract.locator import describe_products

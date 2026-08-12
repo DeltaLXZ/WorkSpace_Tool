@@ -100,13 +100,40 @@ Running with no arguments opens the window.
 | 3 | Bad usage or no valid inputs |
 | 4 | Unexpected internal error |
 
+## Reading DGNLIBs directly
+
+A `.dgnlib` is a binary DGN V8 container, but it is not opaque: it is an OLE2 compound
+file whose payload streams are ordinary zlib behind a 16-byte header. Inflated, they
+carry the EC XML schemas as UTF-16 documents and the library's names as
+length-prefixed ASCII. That is enough to inventory what a library declares **without an
+installed Bentley product and without consuming a licence**.
+
+```powershell
+# One library, a folder, or several -- folders are searched recursively
+workspace-checker --read-dgnlib "D:\Workspaces\GDOT\Standards\Dgnlib"
+workspace-checker --read-dgnlib Features.dgnlib PrintStyles.dgnlib
+workspace-checker --read-dgnlib Features.dgnlib --names   # every name, not a sample
+```
+
+For each library this reports the stream count, every EC schema with its version, and
+the names found. Names containing a space are shown by default because those are the
+human-authored ones — Feature Definitions, Element Templates, levels, template paths.
+The rest are EC property identifiers, available with `--names`.
+
+### What this does not do
+
+This is an inventory, not a full DGN element parser. The binary element schema is
+undocumented, so it cannot resolve the Feature Definition to Feature Symbology to
+Element Template to Level chain, and it cannot read symbology values. It answers *what
+is in this library*, not *how does it wire together*. The resolved chain still needs
+exports — either the four files supplied directly, or a product export as below.
+
 ## How the DGNLIB extraction works, and its limits
 
-A `.dgnlib` is a binary DGN V8 container. There is no open-source reader for it, so the
-checker asks an installed Bentley product to perform the four exports and then parses
-those. If no product is installed the run does **not** fail: the workspace and
-configuration audit still completes, and the standards checks report `NOT_EVALUATED`
-with instructions to export manually.
+For the resolved standards chain, the checker asks an installed Bentley product to
+perform the four exports and then parses those. If no product is installed the run does
+**not** fail: the workspace and configuration audit still completes, and the standards
+checks report `NOT_EVALUATED` with instructions to export manually.
 
 ### Choosing which product to drive
 
@@ -165,6 +192,7 @@ and `NOT_EVALUATED` never worsens the verdict.
 | FD only | Inventory and paths only |
 | Workspace, no exports | Configuration and inventory audit only |
 | Exports, no workspace | Standards audit only |
+| DGNLIBs, no product | `--read-dgnlib` inventory: schemas and names, no resolved chain |
 
 ## Configuration
 
@@ -254,6 +282,8 @@ workspace_checker/
     resolver.py     MicroStation configuration semantics
     roles.py        DGNLIB role coverage
     checks.py       wiring checks
+  dgn/
+    reader.py       offline DGN V8 reading (OLE2 + zlib + EC schemas)
   extract/
     locator.py      Bentley product discovery
     adapter.py      export driver

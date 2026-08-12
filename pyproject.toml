@@ -7,7 +7,7 @@ name = "workspace-checker"
 version = "1.0.0"
 description = "DOT standards and workspace health auditor for OpenRoads/OpenBridge"
 requires-python = ">=3.10"
-dependencies = ["openpyxl>=3.1"]
+dependencies = ["openpyxl>=3.1", "olefile>=0.47"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pyinstaller>=6.0,<7"]

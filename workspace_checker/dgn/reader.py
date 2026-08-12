@@ -1,0 +1,225 @@
+"""Reads a DGN V8 library directly, without an installed Bentley product.
+
+A ``.dgnlib`` is an OLE2 compound file. Its payload streams are ordinary zlib
+streams sitting behind a 16-byte header, and the inflated bytes carry two things
+this checker cares about:
+
+* the **EC XML schemas**, stored as UTF-16 documents, which name the civil
+  domain classes a library participates in; and
+* **length-prefixed name strings** -- level names, element template names,
+  feature definition names -- as a single leading byte holding the length
+  followed by that many ASCII characters.
+
+That is not a full DGN element parser and does not try to be. The binary element
+schema is undocumented, so anything requiring geometry or the resolved
+FD -> FS -> ET -> Level chain still needs a product export. What this module
+provides is an inventory of what a library *declares*, obtained offline, which is
+enough to answer "what is in this DGNLIB" without consuming a licence.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import zlib
+from dataclasses import dataclass, field
+from pathlib import Path
+
+log = logging.getLogger(__name__)
+
+OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
+# Payload streams carry a 16-byte header ahead of the zlib data. The other offsets
+# are cheap to try and cover streams that store it differently.
+_ZLIB_OFFSETS = (16, 0, 2, 4, 8)
+
+_SCHEMA_RE = re.compile(r"<\?xml.*?</ECSchema>", re.S)
+_SCHEMA_NAME_RE = re.compile(r'schemaName="([^"]+)"')
+# Anchored to the ECSchema tag: an unanchored version="..." matches the XML
+# declaration first and reports every schema as v1.0.
+_SCHEMA_VERSION_RE = re.compile(r'<ECSchema[^>]*?\sversion="([^"]+)"')
+
+# A name is a plausible standards identifier: printable, mostly letters, and not a
+# fragment of binary that happens to fall in the ASCII range.
+_NAME_CHARS = re.compile(r"[A-Za-z0-9 _\-&()./\\]+")
+_MIN_NAME = 4
+_MAX_NAME = 120
+
+
+@dataclass
+class EmbeddedSchema:
+    name: str
+    version: str
+    xml: str
+
+    @property
+    def label(self) -> str:
+        return f"{self.name} v{self.version}" if self.version else self.name
+
+
+@dataclass
+class DgnLibrary:
+    """What a single .dgnlib declares, read offline."""
+
+    path: str
+    streams: dict[str, int] = field(default_factory=dict)
+    schemas: list[EmbeddedSchema] = field(default_factory=list)
+    names: list[str] = field(default_factory=list)
+    unreadable: list[str] = field(default_factory=list)
+    error: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return not self.error
+
+    @property
+    def schema_names(self) -> list[str]:
+        return sorted({s.name for s in self.schemas})
+
+
+class NotADgnContainer(Exception):
+    """The file is not an OLE2 compound document, so it is not a DGN V8 file."""
+
+
+def is_dgn_container(path: str | Path) -> bool:
+    """True if the file starts with the OLE2 signature. Cheap enough to call per file."""
+    try:
+        with open(path, "rb") as fh:
+            return fh.read(8) == OLE_MAGIC
+    except OSError:
+        return False
+
+
+def inflate(data: bytes) -> bytes | None:
+    """Inflate a payload stream, or None if it is not zlib at any known offset.
+
+    Streams are truncated rather than rejected when they end mid-block: a partial
+    inventory beats discarding the library.
+    """
+    for offset in _ZLIB_OFFSETS:
+        if offset >= len(data):
+            continue
+        try:
+            out = zlib.decompressobj().decompress(data[offset:])
+        except zlib.error:
+            continue
+        if len(out) > len(data):
+            return out
+    return None
+
+
+def extract_schemas(payload: bytes) -> list[EmbeddedSchema]:
+    """Every EC XML schema document in an inflated stream.
+
+    The documents declare ``encoding="UTF-16"`` and are stored that way, so decoding
+    is UTF-16LE first with a latin-1 fallback for streams that are not.
+    """
+    schemas: list[EmbeddedSchema] = []
+    for text in (_decode_utf16(payload), payload.decode("latin-1", "ignore")):
+        for match in _SCHEMA_RE.finditer(text):
+            xml = match.group()
+            name = _SCHEMA_NAME_RE.search(xml)
+            version = _SCHEMA_VERSION_RE.search(xml)
+            schemas.append(
+                EmbeddedSchema(
+                    name=name.group(1) if name else "",
+                    version=version.group(1) if version else "",
+                    xml=xml,
+                )
+            )
+        if schemas:
+            break
+    return schemas
+
+
+def harvest_names(payload: bytes) -> list[str]:
+    """Length-prefixed ASCII names in an inflated stream, in file order.
+
+    Each candidate is a byte holding a length followed by exactly that many
+    printable characters. Requiring the prefix to agree with the run length is what
+    separates real names from binary that happens to be printable.
+    """
+    names: list[str] = []
+    text_view = payload.decode("latin-1", "ignore")
+    for match in _NAME_CHARS.finditer(text_view):
+        start, run = match.start(), match.group()
+        # The length byte is often itself printable ("&" is 38), in which case it is
+        # absorbed into the run and the real name starts one character in.
+        if start > 0 and payload[start - 1] == len(run):
+            candidate = run
+        elif len(run) > 1 and ord(run[0]) == len(run) - 1:
+            candidate = run[1:]
+        else:
+            continue
+        if not (_MIN_NAME <= len(candidate) <= _MAX_NAME):
+            continue
+        if not _plausible_name(candidate):
+            continue
+        names.append(candidate)
+    return names
+
+
+def _plausible_name(text: str) -> bool:
+    letters = sum(c.isalpha() for c in text)
+    return letters >= 3 and letters / len(text) > 0.5
+
+
+def _decode_utf16(payload: bytes) -> str:
+    # Schemas may start on either byte parity depending on the surrounding record.
+    for start in (0, 1):
+        chunk = payload[start:]
+        text = chunk[: len(chunk) - (len(chunk) % 2)].decode("utf-16-le", "ignore")
+        if "<ECSchema" in text:
+            return text
+    return ""
+
+
+def read_library(path: str | Path) -> DgnLibrary:
+    """Read one .dgnlib. Never raises: a failure is reported on the result."""
+    import olefile
+
+    target = Path(path)
+    library = DgnLibrary(path=str(target))
+
+    if not is_dgn_container(target):
+        library.error = "not an OLE2 compound file, so not a DGN V8 library"
+        return library
+
+    try:
+        ole = olefile.OleFileIO(str(target))
+    except OSError as exc:
+        library.error = f"cannot open: {exc}"
+        return library
+
+    seen_names: set[str] = set()
+    try:
+        for entry in ole.listdir():
+            name = "/".join(entry)
+            try:
+                raw = ole.openstream(entry).read()
+            except OSError as exc:
+                library.unreadable.append(f"{name}: {exc}")
+                continue
+            payload = inflate(raw)
+            if payload is None:
+                library.streams[name] = len(raw)
+                continue
+            library.streams[name] = len(payload)
+            library.schemas.extend(extract_schemas(payload))
+            for candidate in harvest_names(payload):
+                if candidate not in seen_names:
+                    seen_names.add(candidate)
+                    library.names.append(candidate)
+    finally:
+        ole.close()
+
+    # Schemas repeat across streams; keep one entry per name and version.
+    unique: dict[tuple[str, str], EmbeddedSchema] = {}
+    for schema in library.schemas:
+        unique.setdefault((schema.name, schema.version), schema)
+    library.schemas = list(unique.values())
+    return library
+
+
+def read_libraries(paths: list[str | Path]) -> list[DgnLibrary]:
+    return [read_library(p) for p in paths]
