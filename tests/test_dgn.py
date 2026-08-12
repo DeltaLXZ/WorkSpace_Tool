@@ -9,12 +9,16 @@ import zlib
 
 import pytest
 
+import struct
+
 from workspace_checker.dgn.reader import (
     OLE_MAGIC,
+    extract_definitions,
     extract_schemas,
     harvest_names,
     inflate,
     is_dgn_container,
+    iter_records,
     read_library,
 )
 
@@ -104,6 +108,44 @@ class TestNameHarvesting:
     def test_rejects_runs_below_the_minimum_length(self):
         payload = b"\x00" + self._prefixed("ab") + b"\x00"
         assert harvest_names(payload) == []
+
+
+class TestRecords:
+    @staticmethod
+    def _record(sequence: int, text: str, declared: int | None = None) -> bytes:
+        body = text.encode("ascii")
+        if declared is None:
+            declared = len(body) + 4
+        return struct.pack("<III", 0x56D2100F, sequence, declared) + b"\xff\xfe\x01\x00" + body + b"\x00"
+
+    def test_reads_a_self_consistent_record(self):
+        payload = b"\x00" * 8 + self._record(1, "Bridge_Abutment")
+        assert list(iter_records(payload)) == [(1, "Bridge_Abutment")]
+
+    def test_rejects_a_record_whose_declared_length_disagrees(self):
+        payload = b"\x00" * 8 + self._record(1, "Bridge_Abutment", declared=99)
+        assert list(iter_records(payload)) == []
+
+    def test_name_followed_by_description_is_one_definition(self):
+        payload = (
+            b"\x00" * 8
+            + self._record(1, "Bridge_Abutment")
+            + self._record(2, "Prop Bridge Abutment")
+        )
+        definitions = extract_definitions(payload)
+        assert len(definitions) == 1
+        assert definitions[0].name == "Bridge_Abutment"
+        assert definitions[0].description == "Prop Bridge Abutment"
+
+    def test_name_without_a_description_stands_alone(self):
+        payload = b"\x00" * 8 + self._record(1, "Bridge_Cap") + self._record(1, "Bridge_Deck")
+        definitions = extract_definitions(payload)
+        assert [d.name for d in definitions] == ["Bridge_Cap", "Bridge_Deck"]
+        assert all(d.description == "" for d in definitions)
+
+    def test_orphan_description_is_not_a_definition(self):
+        payload = b"\x00" * 8 + self._record(2, "Prop Bridge Abutment")
+        assert extract_definitions(payload) == []
 
 
 class TestReadLibrary:

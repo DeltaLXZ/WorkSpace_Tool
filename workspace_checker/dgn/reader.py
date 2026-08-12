@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import re
+import struct
 import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -45,6 +46,19 @@ _NAME_CHARS = re.compile(r"[A-Za-z0-9 _\-&()./\\]+")
 _MIN_NAME = 4
 _MAX_NAME = 120
 
+# Named definitions are stored as a 12-byte header -- tag, sequence, declared length --
+# followed by this marker and a NUL-terminated ASCII string. The declared length counts
+# the string plus the 4-byte marker, and checking that agreement is what separates a
+# real record from a coincidental byte sequence.
+_RECORD_MARK = b"\xff\xfe\x01\x00"
+_RECORD_RE = re.compile(re.escape(_RECORD_MARK))
+_HEADER = 12
+_DLEN_OVERHEAD = 4
+
+# Within a definition, sequence 1 carries the name and sequence 2 the description.
+_SEQ_NAME = 1
+_SEQ_DESCRIPTION = 2
+
 
 @dataclass
 class EmbeddedSchema:
@@ -58,12 +72,21 @@ class EmbeddedSchema:
 
 
 @dataclass
+class Definition:
+    """A named definition and its description, as stored in the library."""
+
+    name: str
+    description: str = ""
+
+
+@dataclass
 class DgnLibrary:
     """What a single .dgnlib declares, read offline."""
 
     path: str
     streams: dict[str, int] = field(default_factory=dict)
     schemas: list[EmbeddedSchema] = field(default_factory=list)
+    definitions: list[Definition] = field(default_factory=list)
     names: list[str] = field(default_factory=list)
     unreadable: list[str] = field(default_factory=list)
     error: str = ""
@@ -130,6 +153,54 @@ def extract_schemas(payload: bytes) -> list[EmbeddedSchema]:
         if schemas:
             break
     return schemas
+
+
+def iter_records(payload: bytes):
+    """Yield ``(sequence, text)`` for every self-consistent named record.
+
+    The declared length must equal the string length plus the marker, which is a
+    strong enough check that no further filtering is needed.
+    """
+    for match in _RECORD_RE.finditer(payload):
+        head = match.start() - _HEADER
+        if head < 0:
+            continue
+        _tag, sequence, declared = struct.unpack_from("<III", payload, head)
+        start = match.end()
+        end = payload.find(b"\x00", start)
+        if end < 0 or end == start:
+            continue
+        if declared != (end - start) + _DLEN_OVERHEAD:
+            continue
+        try:
+            yield sequence, payload[start:end].decode("ascii")
+        except UnicodeDecodeError:
+            continue
+
+
+def extract_definitions(payload: bytes) -> list[Definition]:
+    """Named definitions in an inflated stream.
+
+    A name record immediately followed by a description record is one definition;
+    a name with no description following stands alone. These are predominantly
+    levels, but models and other named items share the encoding, so this is
+    deliberately called a definition rather than a level.
+    """
+    records = list(iter_records(payload))
+    definitions: list[Definition] = []
+    index = 0
+    while index < len(records):
+        sequence, text = records[index]
+        if sequence != _SEQ_NAME:
+            index += 1
+            continue
+        if index + 1 < len(records) and records[index + 1][0] == _SEQ_DESCRIPTION:
+            definitions.append(Definition(text, records[index + 1][1]))
+            index += 2
+        else:
+            definitions.append(Definition(text))
+            index += 1
+    return definitions
 
 
 def harvest_names(payload: bytes) -> list[str]:
@@ -206,12 +277,22 @@ def read_library(path: str | Path) -> DgnLibrary:
                 continue
             library.streams[name] = len(payload)
             library.schemas.extend(extract_schemas(payload))
+            library.definitions.extend(extract_definitions(payload))
             for candidate in harvest_names(payload):
                 if candidate not in seen_names:
                     seen_names.add(candidate)
                     library.names.append(candidate)
     finally:
         ole.close()
+
+    seen_definitions: set[tuple[str, str]] = set()
+    unique_definitions: list[Definition] = []
+    for definition in library.definitions:
+        key = (definition.name, definition.description)
+        if key not in seen_definitions:
+            seen_definitions.add(key)
+            unique_definitions.append(definition)
+    library.definitions = unique_definitions
 
     # Schemas repeat across streams; keep one entry per name and version.
     unique: dict[tuple[str, str], EmbeddedSchema] = {}

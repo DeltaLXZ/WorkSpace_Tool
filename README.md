@@ -115,18 +115,40 @@ workspace-checker --read-dgnlib Features.dgnlib PrintStyles.dgnlib
 workspace-checker --read-dgnlib Features.dgnlib --names   # every name, not a sample
 ```
 
-For each library this reports the stream count, every EC schema with its version, and
-the names found. Names containing a space are shown by default because those are the
-human-authored ones — Feature Definitions, Element Templates, levels, template paths.
-The rest are EC property identifiers, available with `--names`.
+For each library this reports the stream count, every EC schema with its version, the
+**named definitions** with their descriptions, and the loose names found.
+
+Definitions are the useful part. They are stored as a 12-byte header — tag, sequence,
+declared length — followed by a marker and the string, where sequence 1 is a name and
+sequence 2 its description. The declared length must agree with the string length,
+which is a strong enough check that no guessing is involved. One KYTC feature library
+yields 824:
+
+```
+Bridge_Abutment                Prop Bridge Abutment
+Bridge_Cap                     Prop Bridge Caps
+Draft_Corr_Design              Design-Civil-Corridor Graphics
+Util_Communications            SUE Communications
+```
+
+These are predominantly levels, but models and other named items share the encoding, so
+they are reported as definitions rather than asserted to be levels.
+
+Names containing a space are the human-authored ones — Feature Definitions, Element
+Templates, template paths. The rest are EC property identifiers, available with
+`--names`.
 
 ### What this does not do
 
-This is an inventory, not a full DGN element parser. The binary element schema is
-undocumented, so it cannot resolve the Feature Definition to Feature Symbology to
-Element Template to Level chain, and it cannot read symbology values. It answers *what
-is in this library*, not *how does it wire together*. The resolved chain still needs
-exports — either the four files supplied directly, or a product export as below.
+This is an inventory, not a full DGN element parser. It cannot yet resolve the Feature
+Definition to Feature Symbology to Element Template to Level chain, and **it does not
+read symbology values** — colour, weight and style. The stream carries the field
+identifiers (`level-color`, `level-style`, `level-description` appear literally), and
+numeric fields sit immediately after each definition, but assigning meaning to those
+offsets without a known-good export to check against would mean guessing. A wrong guess
+would produce confidently incorrect audit results, which is worse than reporting
+`NOT_EVALUATED`. One Level CSV exported from any workspace is enough to pin the offsets
+down; until then symbology comes from supplied exports only.
 
 ## How the DGNLIB extraction works, and its limits
 

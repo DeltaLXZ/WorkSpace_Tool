@@ -183,12 +183,24 @@ def print_libraries(paths: list[Path], show_all_names: bool) -> int:
 
         print(
             f"  {len(library.streams)} stream(s), "
-            f"{len(library.schemas)} EC schema(s), {len(library.names)} name(s)"
+            f"{len(library.schemas)} EC schema(s), "
+            f"{len(library.definitions)} definition(s), {len(library.names)} name(s)"
         )
         if library.schemas:
             print("  Schemas")
             for schema in sorted(library.schemas, key=lambda s: s.name):
                 print(f"    {schema.label}")
+        if library.definitions:
+            shown = library.definitions if show_all_names else library.definitions[:40]
+            print(f"  Definitions ({len(shown)} of {len(library.definitions)})")
+            width = max(len(d.name) for d in shown)
+            for definition in shown:
+                print(f"    {definition.name:<{width}}  {definition.description}")
+            if len(shown) < len(library.definitions):
+                print(
+                    f"    ... and {len(library.definitions) - len(shown)} more; "
+                    "pass --names for all"
+                )
         if library.names:
             # Names with a space are the human-authored ones; the rest are EC
             # property identifiers, which are rarely what someone is looking for.
