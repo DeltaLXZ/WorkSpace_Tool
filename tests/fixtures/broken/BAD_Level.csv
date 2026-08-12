@@ -1,0 +1,6 @@
+%SECTION,Levels,
+
+Name,Number,Description,ByLevelColor,ByLevelWeight,ByLevelStyle,Plot,GlobalDisplay,GlobalFreeze
+Default,0,Default level,0,0,0,1,1,0
+BR_Construction,1,Construction lines,,1,0,0,1,0
+BR_Construction,2,Duplicate name,,1,0,0,1,0

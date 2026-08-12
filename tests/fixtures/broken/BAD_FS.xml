@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentManagement xmlns="Bentley-ContentManagement" file="C:\Standards\Dgnlib\BAD_Bridge_Features.dgnlib">
+  <FeatureSymbologies>
+    <FeatureSymbology featurePath="Girders" name="Girder">
+      <SolidFeatureSymbology>
+        <ElementTemplateRef featurePath="Girders\Girder" relationship="GeometricGeometryAspect__DefaultElementTemplate" />
+        <ElementTemplateRef featurePath="Girders\Girder_Missing" relationship="SolidGeometryAspect__TopElementTemplateHolder" />
+      </SolidFeatureSymbology>
+    </FeatureSymbology>
+    <FeatureSymbology featurePath="Orphans" name="NeverUsed">
+      <LinearFeatureSymbology>
+        <ElementTemplateRef featurePath="Girders\Girder" relationship="GeometricGeometryAspect__DefaultElementTemplate" />
+      </LinearFeatureSymbology>
+    </FeatureSymbology>
+  </FeatureSymbologies>
+</ContentManagement>

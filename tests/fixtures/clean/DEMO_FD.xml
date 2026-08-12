@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentManagement xmlns="Bentley-ContentManagement" file="C:\Standards\Dgnlib\DEMO_Bridge_Features_Levels_Elem Temp Imperial.dgnlib">
+  <FeatureDefinitions>
+    <FeatureDefinition name="Deck" featurePath="" description="Bridge deck">
+      <ApplicationFeatureDefinitions>
+        <DeckEntityFeatureDefinition3d ApplicationObjectSettingsProviderName="Deck">
+          <GeometryAspect>
+            <TaggedFeatureSymbologyRef featurePath="Solid\Decks\Deck&gt;~Sol" />
+          </GeometryAspect>
+          <GeometryAspect_V2>
+            <TaggedFeatureSymbologyRef featurePath="Solid\Decks\Deck&gt;~Sol" />
+          </GeometryAspect_V2>
+        </DeckEntityFeatureDefinition3d>
+      </ApplicationFeatureDefinitions>
+    </FeatureDefinition>
+    <FeatureDefinition name="Abutment_steel_piles" featurePath="Abutment" description="Steel pile abutment">
+      <ApplicationFeatureDefinitions>
+        <PierEntityFeatureDefinition3d ApplicationObjectSettingsProviderName="Supports">
+          <GeometryAspect>
+            <TaggedFeatureSymbologyRef featurePath="Solid\Abutments\Piles_steel&gt;~Sol" />
+            <TaggedFeatureSymbologyRef featurePath="Point\Abutments\Piles_steel&gt;~Pnt" />
+          </GeometryAspect>
+        </PierEntityFeatureDefinition3d>
+      </ApplicationFeatureDefinitions>
+    </FeatureDefinition>
+    <FeatureDefinition name="Supportline" featurePath="">
+      <ApplicationFeatureDefinitions>
+        <SupportLineFeatureDefinition ApplicationObjectSettingsProviderName="SupportLine">
+          <GeometryAspect>
+            <TaggedFeatureSymbologyRef featurePath="Linear\Auxiliary\Barriers\Barrier&gt;~Lin" />
+          </GeometryAspect>
+        </SupportLineFeatureDefinition>
+      </ApplicationFeatureDefinitions>
+    </FeatureDefinition>
+  </FeatureDefinitions>
+</ContentManagement>

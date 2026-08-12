@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentManagement xmlns="Bentley-ContentManagement" file="C:\Standards\Dgnlib\BAD_Bridge_Features.dgnlib">
+  <FeatureDefinitions>
+    <FeatureDefinition name="Girder" featurePath="">
+      <ApplicationFeatureDefinitions>
+        <GirderEntityFeatureDefinition3d ApplicationObjectSettingsProviderName="Beam">
+          <GeometryAspect>
+            <TaggedFeatureSymbologyRef featurePath="Solid\Girders\Girder&gt;~Sol" />
+          </GeometryAspect>
+        </GirderEntityFeatureDefinition3d>
+      </ApplicationFeatureDefinitions>
+    </FeatureDefinition>
+    <FeatureDefinition name="Ghost" featurePath="">
+      <ApplicationFeatureDefinitions>
+        <GenericFeatureDefinition3d ApplicationObjectSettingsProviderName="Misc">
+          <GeometryAspect>
+            <TaggedFeatureSymbologyRef featurePath="Solid\Nowhere\DoesNotExist&gt;~Sol" />
+          </GeometryAspect>
+        </GenericFeatureDefinition3d>
+      </ApplicationFeatureDefinitions>
+    </FeatureDefinition>
+  </FeatureDefinitions>
+</ContentManagement>

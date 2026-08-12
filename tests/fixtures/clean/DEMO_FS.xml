@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentManagement xmlns="Bentley-ContentManagement" file="C:\Standards\Dgnlib\DEMO_Bridge_Features_Levels_Elem Temp Imperial.dgnlib">
+  <FeatureSymbologies>
+    <FeatureSymbology featurePath="Decks" name="Deck">
+      <SolidFeatureSymbology>
+        <ElementTemplateRef featurePath="Decks\Deck" relationship="GeometricGeometryAspect__DefaultElementTemplate" />
+        <ElementTemplateRef featurePath="Decks\Deck_Top" relationship="SolidGeometryAspect__TopElementTemplateHolder" />
+      </SolidFeatureSymbology>
+    </FeatureSymbology>
+    <FeatureSymbology featurePath="Abutments" name="Piles_steel">
+      <SolidFeatureSymbology>
+        <ElementTemplateRef featurePath="Abutments\Piles_steel" relationship="GeometricGeometryAspect__DefaultElementTemplate" />
+      </SolidFeatureSymbology>
+    </FeatureSymbology>
+    <FeatureSymbology featurePath="Abutments" name="Piles_steel">
+      <PointFeatureSymbology>
+        <ElementTemplateRef featurePath="Abutments\Piles_steel_pt" relationship="GeometricGeometryAspect__PlanElementTemplate" />
+      </PointFeatureSymbology>
+    </FeatureSymbology>
+    <FeatureSymbology featurePath="Auxiliary\Barriers" name="Barrier">
+      <LinearFeatureSymbology>
+        <ElementTemplateRef featurePath="Auxiliary\Barriers\Barrier" relationship="GeometricGeometryAspect__DefaultElementTemplate" />
+        <ElementTemplateRef featurePath="Auxiliary\Barriers\Barrier_Profile" relationship="LinearGeometryAspect__ProfileIntersectionElementTemplate" />
+      </LinearFeatureSymbology>
+    </FeatureSymbology>
+  </FeatureSymbologies>
+</ContentManagement>

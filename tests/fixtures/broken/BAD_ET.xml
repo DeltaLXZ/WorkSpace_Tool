@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<DgnData>
+  <ElementTemplates>
+    <NodeData name="Girders" allowChildren="true">
+      <NodeData name="Girder" allowChildren="false">
+        <ECXAttrData>
+          <Ustn_ElementParams xmlns="Ustn_ElementParams.01.00">
+            <Levels><Level><Value>BR_Girder_Undefined</Value></Level></Levels>
+            <Colors><Color><Value>0,1,5:[0,0,0]:\\\</Value></Color></Colors>
+          </Ustn_ElementParams>
+        </ECXAttrData>
+      </NodeData>
+    </NodeData>
+    <NodeData name="Spares" allowChildren="true">
+      <NodeData name="Unused" allowChildren="false">
+        <ECXAttrData>
+          <Ustn_ElementParams xmlns="Ustn_ElementParams.01.00">
+            <Levels><Level><Value></Value></Level></Levels>
+          </Ustn_ElementParams>
+        </ECXAttrData>
+      </NodeData>
+    </NodeData>
+  </ElementTemplates>
+</DgnData>

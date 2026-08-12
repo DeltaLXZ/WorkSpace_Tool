@@ -1,0 +1,15 @@
+%SECTION,Settings,
+Name,Value
+Version,2
+
+%SECTION,Levels,
+
+Name,Number,Description,ByLevelColor,ByLevelWeight,ByLevelStyle,Plot,GlobalDisplay,GlobalFreeze,Material
+Default,0,Default level,0,0,0,1,1,0,
+BR_Deck,1,Bridge deck solid,11,2,0,1,1,0,"materials.dgnlib, Civil:Concrete"
+BR_Deck_Top,2,Bridge deck top face,3,1,0,1,1,0,
+BR_Abutment_Piles,3,Abutment steel piles,7,3,0,1,1,0,"materials.dgnlib, Civil:Steel"
+BR_Barrier,4,Barrier,4,2,0,1,1,0,
+
+%SECTION,Filters,
+Name,Expression

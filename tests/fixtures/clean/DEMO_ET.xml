@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<DgnData>
+  <ElementTemplates>
+    <NodeData name="Decks" allowChildren="true">
+      <NodeData name="Deck" allowChildren="false">
+        <ECXAttrData>
+          <Ustn_ElementParams xmlns="Ustn_ElementParams.01.00">
+            <Levels><Level><Value>BR_Deck</Value></Level></Levels>
+            <Colors><Color><Value>0,1,11:[0,0,0]:\\\</Value></Color></Colors>
+            <Weights><Weight><Value>2</Value></Weight></Weights>
+            <LineStyles><LineStyle><Value>0</Value></LineStyle></LineStyles>
+            <Materials><Material><Value>materials.dgnlib|Civil:Concrete</Value></Material></Materials>
+            <ElementClasses><ElementClass><Value>Primary</Value></ElementClass></ElementClasses>
+            <Transparencies><Transparency><Value>0</Value></Transparency></Transparencies>
+          </Ustn_ElementParams>
+        </ECXAttrData>
+      </NodeData>
+      <NodeData name="Deck_Top" allowChildren="false">
+        <ECXAttrData>
+          <Ustn_ElementParams xmlns="Ustn_ElementParams.01.00">
+            <Levels><Level><Value>BR_Deck_Top</Value></Level></Levels>
+            <Colors><Color><Value>0,1,3:[0,0,0]:\\\</Value></Color></Colors>
+            <Weights><Weight><Value>1</Value></Weight></Weights>
+          </Ustn_ElementParams>
+        </ECXAttrData>
+      </NodeData>
+    </NodeData>
+    <NodeData name="Abutments" allowChildren="true">
+      <NodeData name="Piles_steel" allowChildren="false">
+        <ECXAttrData>
+          <Ustn_ElementParams xmlns="Ustn_ElementParams.01.00">
+            <Levels><Level><Value>BR_Abutment_Piles</Value></Level></Levels>
+            <Colors><Color><Value>0,1,7:[0,0,0]:\\\</Value></Color></Colors>
+            <Weights><Weight><Value>3</Value></Weight></Weights>
+            <Materials><Material><Value>materials.dgnlib|Civil:Steel</Value></Material></Materials>
+          </Ustn_ElementParams>
+        </ECXAttrData>
+      </NodeData>
+      <NodeData name="Piles_steel_pt" allowChildren="false">
+        <ECXAttrData>
+          <Ustn_ElementParams xmlns="Ustn_ElementParams.01.00">
+            <Levels><Level><Value>BR_Abutment_Piles</Value></Level></Levels>
+            <Colors><Color><Value>0,1,7:[0,0,0]:\\\</Value></Color></Colors>
+          </Ustn_ElementParams>
+        </ECXAttrData>
+      </NodeData>
+    </NodeData>
+    <NodeData name="Auxiliary" allowChildren="true">
+      <NodeData name="Barriers" allowChildren="true">
+        <NodeData name="Barrier" allowChildren="false">
+          <ECXAttrData>
+            <Ustn_ElementParams xmlns="Ustn_ElementParams.01.00">
+              <Levels><Level><Value>BR_Barrier</Value></Level></Levels>
+              <Colors><Color><Value>0,1,4:[0,0,0]:\\\</Value></Color></Colors>
+              <TextStyles><TextStyle><Value>BR_Note</Value></TextStyle></TextStyles>
+            </Ustn_ElementParams>
+          </ECXAttrData>
+        </NodeData>
+        <NodeData name="Barrier_Profile" allowChildren="false">
+          <ECXAttrData>
+            <Ustn_ElementParams xmlns="Ustn_ElementParams.01.00">
+              <Levels><Level><Value>BR_Barrier</Value></Level></Levels>
+              <Colors><Color><Value>0,1,4:[0,0,0]:\\\</Value></Color></Colors>
+            </Ustn_ElementParams>
+          </ECXAttrData>
+        </NodeData>
+      </NodeData>
+    </NodeData>
+  </ElementTemplates>
+</DgnData>
