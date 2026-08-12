@@ -17,7 +17,7 @@ $python = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
 if (-not (Test-Path $python)) { throw "Virtual environment not found. Run: py -3.12 -m venv .venv" }
 
 Write-Host 'Installing build dependencies...' -ForegroundColor Cyan
-& $python -m pip install --quiet --upgrade pyinstaller openpyxl pytest
+& $python -m pip install --quiet --upgrade 'pyinstaller>=6.0,<7' 'openpyxl>=3.1' 'pytest>=8.0'
 
 if (-not $SkipTests) {
     Write-Host 'Running tests...' -ForegroundColor Cyan
@@ -28,28 +28,43 @@ if (-not $SkipTests) {
 Write-Host 'Building executable...' -ForegroundColor Cyan
 
 # A running instance holds dist\ open and PyInstaller only reports "Access is denied".
-$running = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -eq 'WorkspaceChecker' }
+$running = Get-Process -Name 'WorkspaceChecker' -ErrorAction SilentlyContinue
 if ($running) {
     throw "WorkspaceChecker is still running (PID $($running.Id -join ', ')). Close it, then rebuild."
 }
 
 Remove-Item build, dist -Recurse -Force -ErrorAction SilentlyContinue
 
-$args = @(
-    '-m', 'PyInstaller',
-    '--noconfirm',
-    '--clean',
-    '--name', 'WorkspaceChecker',
-    '--console',
-    '--collect-submodules', 'workspace_checker',
-    'entry.py'
-)
-if ($OneFile) { $args += '--onefile' } else { $args += '--onedir' }
+if ($OneFile) {
+    # There is no committed one-file spec, so drive PyInstaller by flag -- but park the
+    # spec it generates under build\ so the tracked WorkspaceChecker.spec survives.
+    New-Item -ItemType Directory -Path 'build' -Force | Out-Null
+    $pyArgs = @(
+        '-m', 'PyInstaller',
+        '--noconfirm',
+        '--clean',
+        '--name', 'WorkspaceChecker',
+        '--console',
+        '--onefile',
+        '--collect-submodules', 'workspace_checker',
+        '--specpath', 'build',
+        'entry.py'
+    )
+} else {
+    # Build from the committed spec, so its hiddenimports actually take effect.
+    # Passing entry.py with --name instead would regenerate and overwrite that spec.
+    $pyArgs = @('-m', 'PyInstaller', '--noconfirm', '--clean', 'WorkspaceChecker.spec')
+}
 
-& $python @args
+& $python @pyArgs
 if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed.' }
 
-$target = if ($OneFile) { 'dist' } else { 'dist\WorkspaceChecker' }
+# Stage both modes into one layout so packaging below is identical either way.
+$target = 'dist\WorkspaceChecker'
+if ($OneFile) {
+    New-Item -ItemType Directory -Path $target -Force | Out-Null
+    Move-Item 'dist\WorkspaceChecker.exe' $target -Force
+}
 $exe = Join-Path $target 'WorkspaceChecker.exe'
 
 # Antivirus can lock the freshly written binary and leave PyInstaller's resource update
@@ -64,6 +79,8 @@ Write-Host "  $probe" -ForegroundColor DarkGray
 Copy-Item 'healthcheck.config.sample.json' $target -Force
 Copy-Item 'README.md' $target -Force
 
+# The zip stays in dist\ rather than inside $target; Compress-Archive would otherwise
+# recurse into its own output file.
 $zip = 'dist\WorkspaceChecker.zip'
 Remove-Item $zip -Force -ErrorAction SilentlyContinue
 Compress-Archive -Path $target -DestinationPath $zip

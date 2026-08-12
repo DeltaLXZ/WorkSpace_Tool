@@ -8,3 +8,4 @@ dist/
 output/
 healthcheck.config.json
 .pytest_cache/
+.claude/

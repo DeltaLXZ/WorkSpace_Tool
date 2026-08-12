@@ -9,6 +9,9 @@ description = "DOT standards and workspace health auditor for OpenRoads/OpenBrid
 requires-python = ">=3.10"
 dependencies = ["openpyxl>=3.1"]
 
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pyinstaller>=6.0,<7"]
+
 [project.scripts]
 workspace-checker = "workspace_checker.cli:main"
 
